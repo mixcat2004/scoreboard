@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#e8c84a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="計分板">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<title>四人計分板</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #2a2a3a;
+    --accent: #e8c84a;
+    --neg: #e85a4a;
+    --pos: #4ae8a0;
+    --text: #e8e8f0;
+    --muted: #666680;
+    --blue: #4a8ae8;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    padding: calc(var(--safe-top) + 16px) 14px calc(var(--safe-bot) + 20px);
+  }
+
+  /* ── HEADER ── */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(232,200,74,0.3);
+    line-height: 1;
+  }
+
+  .header-actions { display: flex; gap: 6px; }
+
+  .icon-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .icon-btn:hover, .icon-btn:active { border-color: var(--accent); color: var(--accent); }
+
+  /* ── INSTALL BANNER ── */
+  .install-banner {
+    max-width: 900px;
+    margin: 0 auto 16px;
+    background: rgba(232,200,74,0.1);
+    border: 1px solid rgba(232,200,74,0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .install-banner.show { display: flex; }
+  .install-banner button {
+    background: var(--accent); border: none; color: #000;
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 1px; padding: 6px 14px; border-radius: 4px;
+    cursor: pointer; white-space: nowrap; margin-left: auto;
+  }
+
+  /* ── SCOREBOARD ── */
+  .scoreboard {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+    max-width: 900px;
+    margin-left: auto; margin-right: auto;
+  }
+
+  .player-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 8px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .player-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent); opacity: 0.4;
+    transition: all 0.3s;
+  }
+
+  .player-card.winner-highlight { border-color: var(--pos); }
+  .player-card.winner-highlight::before { background: var(--pos); opacity: 1; }
+
+  .player-name-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(1rem, 3.5vw, 1.4rem);
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 4px;
+    cursor: pointer;
+  }
+
+  .player-total {
+    font-size: clamp(1.3rem, 4vw, 1.8rem);
+    font-weight: 600;
+    transition: color 0.3s;
+  }
+
+  .player-total.pos { color: var(--pos); }
+  .player-total.neg { color: var(--neg); }
+  .player-total.zero { color: var(--muted); }
+
+  .player-rounds { margin-top: 4px; font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+
+  /* ── INPUT SECTION ── */
+  .input-section {
+    max-width: 900px;
+    margin: 0 auto 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 14px;
+  }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 3px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  .hint { font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-bottom: 14px; }
+
+  /* ── VOICE ── */
+  .voice-area {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .voice-btn {
+    background: transparent;
+    border: 1px solid var(--blue);
+    color: var(--blue);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .voice-btn:active { opacity: 0.7; }
+
+  .voice-btn.recording {
+    background: rgba(232,90,74,0.15);
+    border-color: var(--neg); color: var(--neg);
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+  .voice-status { font-size: 10px; color: var(--muted); letter-spacing: 1px; flex: 1; line-height: 1.4; }
+  .voice-status.active { color: var(--blue); }
+  .voice-status.error { color: var(--neg); }
+  .voice-status.success { color: var(--pos); }
+
+  /* ── SCORE INPUTS ── */
+  .score-inputs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .score-field { display: flex; flex-direction: column; gap: 5px; }
+
+  .score-field label {
+    font-size: 10px; letter-spacing: 2px;
+    color: var(--muted); text-align: center;
+  }
+
+  .score-field input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: clamp(0.9rem, 3vw, 1.1rem);
+    font-weight: 600;
+    padding: 10px 4px;
+    text-align: center;
+    width: 100%; outline: none;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    -webkit-appearance: none;
+  }
+
+  .score-field input:focus { border-color: var(--accent); }
+  .score-field input.is-neg { color: var(--neg); }
+  .score-field input.is-winner {
+    color: var(--pos); border-color: var(--pos);
+    background: rgba(74,232,160,0.05); cursor: not-allowed;
+  }
+
+  .error-msg {
+    font-size: 11px; color: var(--neg);
+    text-align: center; margin-bottom: 8px;
+    letter-spacing: 1px; min-height: 14px;
+  }
+
+  .balance-preview {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px;
+    margin-bottom: 14px; text-align: center;
+  }
+
+  .balance-label { font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-bottom: 5px; }
+  .balance-equation { font-size: 12px; color: var(--text); letter-spacing: 1px; line-height: 1.5; }
+  .balance-equation .winner-name { color: var(--pos); font-weight: 600; }
+  .balance-equation .win-score { color: var(--pos); font-weight: 600; font-size: 1.1rem; }
+
+  .btn-add {
+    width: 100%; background: var(--accent); border: none; border-radius: 8px;
+    color: #000; font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.2rem; letter-spacing: 3px;
+    padding: 14px; cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  .btn-add:active { transform: scale(0.98); }
+  .btn-add:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── HISTORY ── */
+  .history-section { max-width: 900px; margin: 0 auto; }
+
+  .history-header {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem; letter-spacing: 3px; color: var(--muted);
+    margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .export-btns { display: flex; gap: 6px; }
+
+  .export-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 1px;
+    padding: 6px 10px; border-radius: 4px; cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .export-btn:hover { border-color: var(--pos); color: var(--pos); }
+
+  .history-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+
+  .history-table th {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--muted); letter-spacing: 1px;
+    padding: 8px 6px; text-align: center;
+  }
+
+  .history-table td {
+    border: 1px solid var(--border); padding: 8px 6px;
+    text-align: center; background: var(--bg);
+  }
+
+  .history-table tr:hover td { background: var(--surface); }
+
+  .val-pos { color: var(--pos); font-weight: 600; }
+  .val-neg { color: var(--neg); }
+  .val-zero { color: var(--muted); }
+  .round-num { color: var(--muted); font-size: 9px; }
+
+  .empty-msg {
+    text-align: center; color: var(--muted); font-size: 11px;
+    letter-spacing: 2px; padding: 28px;
+    border: 1px solid var(--border); border-radius: 8px;
+  }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75); z-index: 200;
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; width: 100%; max-width: 400px;
+  }
+
+  .modal h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem; letter-spacing: 3px; color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .modal-field { margin-bottom: 14px; }
+
+  .modal-field label {
+    font-size: 10px; letter-spacing: 2px; color: var(--muted);
+    display: block; margin-bottom: 6px;
+  }
+
+  .modal-field input {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem; padding: 10px 12px; width: 100%; outline: none;
+  }
+
+  .modal-field input:focus { border-color: var(--accent); }
+
+  .modal-btns { display: flex; gap: 10px; margin-top: 18px; }
+
+  .modal-btn {
+    flex: 1; padding: 12px; border-radius: 6px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem; letter-spacing: 2px; cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .modal-btn.confirm { background: var(--accent); border: none; color: #000; }
+  .modal-btn.cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .modal-btn:active { opacity: 0.7; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: calc(var(--safe-bot) + 24px); left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 20px;
+    font-size: 12px; letter-spacing: 1px; color: var(--text);
+    transition: transform 0.3s ease; z-index: 300;
+    white-space: nowrap;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 480px) {
+    .scoreboard { gap: 6px; }
+    .player-card { padding: 10px 6px; }
+    .score-inputs { gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="app-header">
+  <h1>SCORE BOARD</h1>
+  <div class="header-actions">
+    <button class="icon-btn" onclick="openNameModal()" title="修改姓名">✏️</button>
+    <button class="icon-btn" onclick="showExportMenu()" title="匯出">📥</button>
+    <button class="icon-btn" onclick="confirmReset()" title="清除">🗑</button>
+  </div>
+</div>
+
+<!-- PWA 安裝提示 -->
+<div class="install-banner" id="installBanner">
+  <span>📱 安裝到手機桌面，像 App 一樣使用</span>
+  <button onclick="installPWA()">安裝</button>
+</div>
+
+<!-- 總分卡 -->
+<div class="scoreboard" id="scoreboard"></div>
+
+<!-- 輸入區 -->
+<div class="input-section">
+  <div class="section-title">新增一局</div>
+  <p class="hint">輸入三位負分，留空一位自動成為贏家</p>
+
+  <div class="voice-area">
+    <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()">🎤 語音</button>
+    <div class="voice-status" id="voiceStatus">點麥克風說：「don 負10 phil 負20 anja 負30」</div>
+  </div>
+
+  <div class="score-inputs" id="scoreInputs"></div>
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="balance-preview">
+    <div class="balance-label">會計平衡預覽</div>
+    <div class="balance-equation" id="balanceEq">—</div>
+  </div>
+
+  <button class="btn-add" id="btnAdd" onclick="addRound()" disabled>確認新增</button>
+</div>
+
+<!-- 歷史記錄 -->
+<div class="history-section">
+  <div class="history-header">
+    <span>歷史記錄</span>
+    <div class="export-btns">
+      <button class="export-btn" onclick="exportCSV()">CSV</button>
+      <button class="export-btn" onclick="exportText()">TXT</button>
+    </div>
+  </div>
+  <div id="historyContainer"></div>
+</div>
+
+<!-- 修改姓名 Modal -->
+<div class="modal-overlay" id="nameModal">
+  <div class="modal">
+    <h3>修改玩家姓名</h3>
+    <div id="nameFields"></div>
+    <div class="modal-btns">
+      <button class="modal-btn cancel" onclick="closeModal('nameModal')">取消</button>
+      <button class="modal-btn confirm" onclick="saveNames()">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── 狀態（localStorage 持久化）──
+let players = JSON.parse(localStorage.getItem('players') || '["don","phil","anja","arjar"]');
+let totals = JSON.parse(localStorage.getItem('totals') || '[0,0,0,0]');
+let history = JSON.parse(localStorage.getItem('history') || '[]');
+
+function save() {
+  localStorage.setItem('players', JSON.stringify(players));
+  localStorage.setItem('totals', JSON.stringify(totals));
+  localStorage.setItem('history', JSON.stringify(history));
+}
+
+// ── PWA 安裝 ──
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBanner').classList.add('show');
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBanner').classList.remove('show');
+  showToast('✅ 已安裝到桌面！');
+});
+
+function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(r => {
+      deferredPrompt = null;
+      document.getElementById('installBanner').classList.remove('show');
+    });
+  }
+}
+
+// ── Service Worker ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// ── 初始化 ──
+function init() {
+  renderScoreboard();
+  renderInputs();
+  renderHistory();
+  initVoice();
+}
+
+// ── 總分卡 ──
+function renderScoreboard() {
+  document.getElementById('scoreboard').innerHTML = players.map((p, i) => `
+    <div class="player-card" id="card-${i}">
+      <div class="player-name-display" onclick="quickEditName(${i})" id="name-${i}">${p}</div>
+      <div class="player-total ${totals[i]>0?'pos':totals[i]<0?'neg':'zero'}" id="total-${i}">
+        ${totals[i]>0?'+':''}${totals[i]}
+      </div>
+      <div class="player-rounds" id="rounds-${i}">${history.length} 局</div>
+    </div>
+  `).join('');
+}
+
+// ── 輸入欄位 ──
+function renderInputs() {
+  document.getElementById('scoreInputs').innerHTML = players.map((p, i) => `
+    <div class="score-field">
+      <label>${p.toUpperCase()}</label>
+      <input type="number" id="inp-${i}" placeholder="負分" step="1"
+        oninput="updatePreview()" inputmode="numeric">
+    </div>
+  `).join('');
+}
+
+// ── 即時預覽 ──
+function updatePreview() {
+  const errorEl = document.getElementById('errorMsg');
+  const eqEl = document.getElementById('balanceEq');
+  const btnAdd = document.getElementById('btnAdd');
+
+  players.forEach((_, i) => {
+    document.getElementById('card-' + i).classList.remove('winner-highlight');
+    const inp = document.getElementById('inp-' + i);
+    inp.classList.remove('is-neg', 'is-winner');
+    inp.readOnly = false;
+  });
+
+  errorEl.textContent = '';
+  btnAdd.disabled = true;
+  eqEl.textContent = '—';
+
+  let emptyIdx = [], filledIdx = [], vals = {};
+
+  players.forEach((_, i) => {
+    const raw = document.getElementById('inp-' + i).value.trim();
+    if (raw === '') emptyIdx.push(i);
+    else { vals[i] = parseInt(raw); filledIdx.push(i); }
+  });
+
+  if (emptyIdx.length !== 1) {
+    eqEl.textContent = emptyIdx.length > 1 ? '請輸入三位負分，留空一位為贏家' : '請留空一位欄位作為贏家';
+    return;
+  }
+
+  for (const i of filledIdx) {
+    if (isNaN(vals[i]) || vals[i] >= 0) {
+      errorEl.textContent = `${players[i].toUpperCase()} 必須輸入負數！`;
+      return;
+    }
+  }
+
+  const winIdx = emptyIdx[0];
+  const negSum = filledIdx.reduce((a, i) => a + vals[i], 0);
+  const winScore = -negSum;
+
+  filledIdx.forEach(i => document.getElementById('inp-' + i).classList.add('is-neg'));
+  const winInp = document.getElementById('inp-' + winIdx);
+  winInp.value = winScore;
+  winInp.classList.add('is-winner');
+  winInp.readOnly = true;
+  document.getElementById('card-' + winIdx).classList.add('winner-highlight');
+
+  const negParts = filledIdx.map(i => `${players[i]}(${vals[i]})`).join(' + ');
+  eqEl.innerHTML = `${negParts} + <span class="winner-name">${players[winIdx]}</span>(<span class="win-score">+${winScore}</span>) = 0`;
+  btnAdd.disabled = false;
+}
+
+// ── 新增一局 ──
+function addRound() {
+  const round = players.map((_, i) => parseInt(document.getElementById('inp-' + i).value) || 0);
+  players.forEach((_, i) => { totals[i] += round[i]; });
+  history.push(round);
+  save();
+
+  players.forEach((_, i) => document.getElementById('card-' + i).classList.remove('winner-highlight'));
+  renderScoreboard();
+  renderInputs();
+  document.getElementById('balanceEq').textContent = '—';
+  document.getElementById('btnAdd').disabled = true;
+  document.getElementById('errorMsg').textContent = '';
+  renderHistory();
+
+  const winnerIdx = round.indexOf(Math.max(...round));
+  showToast(`✅ 第 ${history.length} 局完成！${players[winnerIdx].toUpperCase()} +${round[winnerIdx]}`);
+}
+
+// ── 歷史記錄 ──
+function renderHistory() {
+  const c = document.getElementById('historyContainer');
+  if (!history.length) {
+    c.innerHTML = '<div class="empty-msg">尚無記錄</div>';
+    return;
+  }
+  c.innerHTML = `
+    <table class="history-table">
+      <thead><tr><th>局</th>${players.map(p=>`<th>${p.toUpperCase()}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${history.slice().reverse().map((r, ri) => `
+          <tr>
+            <td class="round-num">#${history.length-ri}</td>
+            ${r.map(v=>`<td class="${v>0?'val-pos':v<0?'val-neg':'val-zero'}">${v>0?'+':''}${v}</td>`).join('')}
+          </tr>`).join('')}
+        <tr style="border-top:2px solid var(--accent)">
+          <td class="round-num" style="color:var(--accent);font-weight:600">合計</td>
+          ${totals.map(t=>`<td class="${t>0?'val-pos':t<0?'val-neg':'val-zero'}" style="font-weight:600">${t>0?'+':''}${t}</td>`).join('')}
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+// ── 語音輸入 ──
+let recognition = null;
+let isRecording = false;
+
+function initVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    document.getElementById('voiceStatus').textContent = '此瀏覽器不支援語音（建議 Chrome）';
+    document.getElementById('voiceStatus').className = 'voice-status error';
+    document.getElementById('voiceBtn').disabled = true;
+    return;
+  }
+  recognition = new SR();
+  recognition.lang = 'zh-TW';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.onresult = e => {
+    const t = e.results[0][0].transcript;
+    setVoiceStatus(`「${t}」`, 'active');
+    parseVoice(t);
+  };
+  recognition.onerror = () => { setVoiceStatus('辨識失敗，請重試', 'error'); stopRec(); };
+  recognition.onend = stopRec;
+}
+
+function toggleVoice() {
+  if (isRecording) { recognition.stop(); stopRec(); }
+  else startRec();
+}
+
+function startRec() {
+  isRecording = true;
+  recognition.start();
+  document.getElementById('voiceBtn').className = 'voice-btn recording';
+  document.getElementById('voiceBtn').innerHTML = '⏹ 停止';
+  setVoiceStatus('聆聽中⋯', 'active');
+}
+
+function stopRec() {
+  isRecording = false;
+  document.getElementById('voiceBtn').className = 'voice-btn';
+  document.getElementById('voiceBtn').innerHTML = '🎤 語音';
+}
+
+function setVoiceStatus(msg, type='') {
+  const el = document.getElementById('voiceStatus');
+  el.textContent = msg;
+  el.className = 'voice-status ' + type;
+}
+
+function parseVoice(text) {
+  text = text.toLowerCase()
+    .replace(/負/g,'-').replace(/加|正/g,'+')
+    .replace(/[，、,]/g,' ')
+    .replace(/一/g,'1').replace(/二/g,'2').replace(/三/g,'3')
+    .replace(/四/g,'4').replace(/五/g,'5').replace(/六/g,'6')
+    .replace(/七/g,'7').replace(/八/g,'8').replace(/九/g,'9')
+    .replace(/十/g,'10').replace(/百/g,'00').replace(/零/g,'0');
+
+  let matched = {};
+  players.forEach((p, i) => {
+    const m = text.match(new RegExp(p + '\\s*(-?\\d+)'));
+    if (m) matched[i] = parseInt(m[1]);
+  });
+
+  const mIdx = Object.keys(matched).map(Number);
+  if (mIdx.length === 3) {
+    const emptyIdx = [0,1,2,3].filter(i => !mIdx.includes(i));
+    if (emptyIdx.length === 1) {
+      mIdx.forEach(i => { document.getElementById('inp-'+i).value = matched[i]; });
+      document.getElementById('inp-'+emptyIdx[0]).value = '';
+      updatePreview();
+      setVoiceStatus('✅ 分數已填入，確認後按「確認新增」', 'success');
+      return;
+    }
+  }
+
+  // fallback：按數字順序填入
+  const nums = [...text.matchAll(/-?\d+/g)].map(m=>parseInt(m[0]));
+  if (nums.filter(n=>n<0).length === 3) {
+    const negNums = nums.filter(n=>n<0);
+    players.forEach((_, i) => {
+      document.getElementById('inp-'+i).value = i < 3 ? negNums[i] : '';
+    });
+    updatePreview();
+    setVoiceStatus('✅ 已按順序填入，請確認玩家對應', 'success');
+    return;
+  }
+
+  setVoiceStatus('無法解析，請說：「玩家名 負數字」格式', 'error');
+}
+
+// ── 修改姓名 ──
+function openNameModal() {
+  document.getElementById('nameFields').innerHTML = players.map((p, i) => `
+    <div class="modal-field">
+      <label>玩家 ${i+1}</label>
+      <input type="text" id="ni-${i}" value="${p}" maxlength="10">
+    </div>`).join('');
+  document.getElementById('nameModal').classList.add('show');
+}
+
+function quickEditName(i) {
+  openNameModal();
+  setTimeout(() => document.getElementById('ni-'+i)?.focus(), 100);
+}
+
+function saveNames() {
+  players = players.map((p, i) => document.getElementById('ni-'+i).value.trim() || p);
+  save();
+  closeModal('nameModal');
+  renderScoreboard();
+  renderInputs();
+  renderHistory();
+  showToast('✅ 姓名已更新');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+// ── 匯出 ──
+function exportCSV() {
+  if (!history.length) { showToast('⚠️ 尚無記錄'); return; }
+  const headers = ['局', ...players.map(p=>p.toUpperCase())];
+  const rows = history.map((r,i)=>[i+1,...r]);
+  rows.push(['合計',...totals]);
+  const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
+  download('\uFEFF'+csv, `計分_${dateStr()}.csv`, 'text/csv;charset=utf-8;');
+  showToast('📥 CSV 已下載');
+}
+
+function exportText() {
+  if (!history.length) { showToast('⚠️ 尚無記錄'); return; }
+  const lines = ['=== 四人計分記錄 ===','','玩家：'+players.map(p=>p.toUpperCase()).join(' / '),''];
+  history.forEach((r,i)=>{
+    lines.push(`第${i+1}局: `+players.map((p,pi)=>`${p.toUpperCase()}:${r[pi]>0?'+':''}${r[pi]}`).join('  '));
+  });
+  lines.push('','── 累計 ──');
+  players.forEach((p,i)=>lines.push(`${p.toUpperCase()}: ${totals[i]>0?'+':''}${totals[i]}`));
+  lines.push('','共 '+history.length+' 局 | '+new Date().toLocaleString('zh-TW'));
+  download(lines.join('\n'), `計分_${dateStr()}.txt`, 'text/plain;charset=utf-8;');
+  showToast('📋 TXT 已下載');
+}
+
+function download(content, filename, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename;
+  a.click();
+}
+
+function dateStr() {
+  return new Date().toLocaleDateString('zh-TW').replace(/\//g,'-');
+}
+
+function showExportMenu() {
+  exportCSV();
+}
+
+// ── 清除 ──
+function confirmReset() {
+  if (!confirm('確定要清除所有記錄嗎？')) return;
+  totals = [0,0,0,0];
+  history = [];
+  save();
+  renderScoreboard();
+  renderInputs();
+  document.getElementById('balanceEq').textContent = '—';
+  document.getElementById('btnAdd').disabled = true;
+  document.getElementById('errorMsg').textContent = '';
+  setVoiceStatus('點麥克風說：「玩家名 負分」');
+  renderHistory();
+  showToast('🗑 已清除所有記錄');
+}
+
+// ── Toast ──
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+init();
+</script>
+</body>
+</html>
